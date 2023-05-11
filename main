@@ -1,0 +1,144 @@
+/*
+ * File:   Lab10.c
+ * Author: chris
+ *
+ * Created on 10 de mayo de 2023, 04:02 PM
+ */
+// PIC16F887 Configuration Bit Settings
+
+// 'C' source line config statements
+
+// CONFIG1
+#pragma config FOSC = INTRC_NOCLKOUT// Oscillator Selection bits (INTOSCIO oscillator: I/O function on RA6/OSC2/CLKOUT pin, I/O function on RA7/OSC1/CLKIN)
+#pragma config WDTE = OFF       // Watchdog Timer Enable bit (WDT disabled and can be enabled by SWDTEN bit of the WDTCON register)
+#pragma config PWRTE = OFF      // Power-up Timer Enable bit (PWRT disabled)
+#pragma config MCLRE = OFF      // RE3/MCLR pin function select bit (RE3/MCLR pin function is digital input, MCLR internally tied to VDD)
+#pragma config CP = OFF         // Code Protection bit (Program memory code protection is disabled)
+#pragma config CPD = OFF        // Data Code Protection bit (Data memory code protection is disabled)
+#pragma config BOREN = OFF      // Brown Out Reset Selection bits (BOR disabled)
+#pragma config IESO = OFF       // Internal External Switchover bit (Internal/External Switchover mode is disabled)
+#pragma config FCMEN = OFF      // Fail-Safe Clock Monitor Enabled bit (Fail-Safe Clock Monitor is disabled)
+#pragma config LVP = OFF        // Low Voltage Programming Enable bit (RB3 pin has digital I/O, HV on MCLR must be used for programming)
+
+// CONFIG2
+#pragma config BOR4V = BOR40V   // Brown-out Reset Selection bit (Brown-out Reset set to 4.0V)
+#pragma config WRT = OFF        // Flash Program Memory Self Write Enable bits (Write protection off)
+
+#include <xc.h>
+#include <string.h>
+#include <stdint.h>
+#define _XTAL_FREQ 1000000
+
+void setup (void);
+
+int contador, bandera = 1, contador2;
+
+void __interrupt () isr (void){     
+    
+   while (!RCIF){
+    if (INTCONbits.RBIF==1){
+        INTCONbits.RBIF=0;
+        
+            if (RB0==0){
+                __delay_ms(10);
+                while (!RB0);
+                INTCONbits.RBIF = 0;
+                PORTD=0;
+            }
+            if (RB2==0){
+                __delay_ms(10);
+                while (!RB2);
+                INTCONbits.RBIF = 0;
+                PORTD++;
+            }
+            if (RB1==0){
+                __delay_ms(10);
+                while (!RB1);
+                INTCONbits.RBIF = 0;
+              PORTD--;
+            } 
+        }
+    } // Esperar a que llegue un carácter
+    while (!RCIF);
+    if(PIR1bits.RCIF)       //Interrupcion entrada EUSART
+    {
+        if(bandera == 1){       // Centenas
+            contador2 = 0;
+            contador2 += (RCREG - 48)*100;      //Sumar valor centenas
+            bandera = 2;
+        }
+        else if(bandera == 2){  // Decenas
+            contador2 += (RCREG - 48)*10;       // Sumar valor denceas
+            bandera = 3;
+        }
+        else if(bandera == 3){  // Unidades
+            contador2 += (RCREG - 48);          // Sumar valor unidades
+            bandera = 1;
+            PORTD = contador2;                  // Mover valor a PORTA
+        }
+    }
+}
+
+void main(void) {
+    setup();
+    while(1){
+        TXREG = contador;       // Enviar valor a EUSART
+        __delay_ms(100);
+    }
+    return;
+}
+void setup (void){
+    //Configuracion I/O
+    ANSEL = 0;             
+    ANSELH = 0;
+    TRISD = 0;
+    TRISB = 255;
+    PORTB = 0;
+    PORTD = 0;
+    //contador = 0;
+    
+    //Configuracion EUSART
+    TXSTAbits.SYNC = 0;             //Modo asincrono
+    TXSTAbits.BRGH = 1;             //High speed baud rate
+
+    BAUDCTLbits.BRG16 = 1;          //16-bit Baud Rate
+    SPBRG = 25;
+    SPBRGH = 0;
+    
+    RCSTAbits.SPEN = 1;             //Serial port enable
+    RCSTAbits.RX9 = 0;              //8 bits de datos
+    RCSTAbits.CREN = 1;             //Habilitar para recibir datos
+    
+    TXSTAbits.TXEN = 1;             //Habilitar para enviar datos
+    
+    //Interrupciones EUSART
+    PIR1bits.RCIF = 0;            //Bandera RX
+    PIE1bits.RCIE = 1;            //INT EUSART RC
+    
+    //Configuracion de interrupciones
+    INTCONbits.GIE = 1;         //INT globales
+    INTCONbits.PEIE=1;          //INT perifericas
+    
+    //Configuracion de pullups para el PORTB
+    OPTION_REGbits.nRBPU = 0;
+    WPUBbits.WPUB0 = 1;
+    WPUBbits.WPUB1 = 1;
+    WPUBbits.WPUB2 = 1;
+    
+    //Configuracion de interrupciones PORTB
+    INTCONbits.RBIE = 1;
+    INTCONbits.RBIF = 0;
+    IOCBbits.IOCB0 = 1;
+    IOCBbits.IOCB1 = 1;
+    
+    //Configuraacion de oscilador interno
+    OSCCONbits.IRCF=0b100;      //1MHz oscilador interno   
+    OSCCONbits.SCS=1;
+    
+    T2CONbits.TMR2ON = 1;       //Encender TMR2
+    
+    return;
+    
+} 
+
+
