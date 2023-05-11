@@ -1,0 +1,45 @@
+# Import Adafruit IO REST client.
+from Adafruit_IO import Client, Feed, Data, RequestError
+import datetime, serial, time
+
+# Set to your Adafruit IO key.
+# Remember, your key is a secret,
+# so make sure not to publish it when you publish this code!
+ADAFRUIT_IO_KEY = 'aio_MnZB74GjTFKzCi3fy963RK9HWQSG'
+
+# Set to your Adafruit IO username.
+# (go to https://accounts.adafruit.com to find your username)
+ADAFRUIT_IO_USERNAME = 'Campos5_55'
+
+# Create an instance of the REST client.
+aio = Client(ADAFRUIT_IO_USERNAME, ADAFRUIT_IO_KEY)
+try:
+    counter = aio.feeds('counter')
+    counter2 = aio.feeds('counter2')
+except RequestError:
+    feed = Feed(name="counter")
+    counter = aio.create_feed(feed)
+
+import serial   
+
+with serial.Serial() as ser:    # EUSART config
+    ser.baudrate = 9600
+    ser.port = 'COM9'
+
+while True:                     # Ciclo principal
+    time.sleep(3)               # Delay 3s
+    ser.open()                  
+    
+    data = int(aio.receive(counter.key).value)  # Recibir datos de adafruit
+    if data < 100:                              # Centenas = 0
+        ser.write(b'0')
+    if data < 10:                               # Decenas = 0
+        ser.write(b'0')
+    
+    ser.write(bytes(str(data), 'utf-8'))        # Escribir el valor al puerto serial    
+    
+    data2 = ser.read()                          # Leer datos del puerto serial
+    aio.send_data(counter2.key, int(ord(data2.decode('utf_8', 'strict'))))      # Enviar datos a adafruit
+    
+    ser.close()
+
